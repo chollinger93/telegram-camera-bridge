@@ -8,6 +8,7 @@ import (
 )
 
 var cfgFile string
+var isDebug bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -33,6 +34,7 @@ func init() {
 	// will be global for your application.
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Path to config file yaml")
+	rootCmd.PersistentFlags().BoolVar(&isDebug, "debug", false, "Enable debug logging")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -45,8 +47,10 @@ func printUsage(msg string) {
 }
 
 func initLogging() {
-	logger, _ := zap.NewProduction()
+	// TODO: debug level
+	logger, _ := zap.NewDevelopment()
 	zap.ReplaceGlobals(logger)
+
 }
 
 // initConfig reads in config file and ENV variables if set.

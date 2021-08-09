@@ -1,0 +1,25 @@
+# General settings
+general:
+  # REST Settings
+  server: "0.0.0.0"
+  port: "6060"
+  # Filter
+  ip_filter: "" # == 192.168.1. -> 192.168.1.*
+
+telegram:
+  # Bot Name
+  bot_name: "@your_bot_name"
+  # Bot API Key
+  api_key: "ID:Key"
+  # Chat ID; get from `https://api.telegram.org/bot<YourBOTToken>/getUpdates`
+  chat_id: 000000
+
+# Snapshots module
+snapshots:
+  enabled: true
+  interval_s: 1200 # Every 20 mins
+  snapshot_url: "http://canera.local/picture/1/current/?_username=whoami&_signature=KEY"
+  # Hours active, in local TZ, as 24:00
+  active_time:
+    from_time: "08:30"
+    to_time: "22:30"

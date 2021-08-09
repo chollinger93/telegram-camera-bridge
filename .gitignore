@@ -16,3 +16,6 @@
 config/*.yaml
 *.jpg
 *.png
+!docs/*.png
+!config/sample.yaml
+.vscode/*
