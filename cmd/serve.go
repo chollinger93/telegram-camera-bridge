@@ -192,14 +192,23 @@ func (a *App) periodicUpdater() {
 	if a.Cfg.Snapshots.Enabled {
 		zap.S().Infof("Snapshot updater running every %vs", a.Cfg.Snapshots.IntervalS)
 		for range time.Tick(time.Second * time.Duration(a.Cfg.Snapshots.IntervalS)) {
-			zap.S().Debugf("Tick, taking screenshot")
+			zap.S().Debugf("Tick, taking screenshot after %vs", a.Cfg.Snapshots.IntervalS)
 			go a.handleSnapshots()
 		}
 	}
 }
 
+func (a *App) commandHandler() {
+	if a.Cfg.Snapshots.Enabled {
+		go a.Snapshots.HandleCommands()
+	}
+}
+
 func (a *App) Serve() {
+	// Update snapshots and videos
 	go a.periodicUpdater()
+	// Handle commands
+	go a.commandHandler()
 
 	// Server
 	uri := fmt.Sprintf("%s:%s", a.Cfg.General.Server, a.Cfg.General.Port)
