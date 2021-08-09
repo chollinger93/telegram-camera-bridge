@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	c "github.com/chollinger93/telegram-camera-bridge/core"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -23,7 +24,9 @@ var serveCmd = &cobra.Command{
 	Short: "Start the service",
 	Long:  `Start the integration service between MotionEye OS and Telegram.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		newApp().Serve()
+		app := newApp()
+		// Rest
+		app.Serve()
 	},
 }
 
@@ -108,6 +111,59 @@ func (a *App) filterRequest(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+func isWithinActiveHours(now, start, end string) bool {
+	startTime, err := time.Parse("15:04", start)
+	if err != nil {
+		zap.S().Error(err)
+		return false
+	}
+	endTime, err := time.Parse("15:04", end)
+	if err != nil {
+		zap.S().Error(err)
+		return false
+	}
+	nowTime, err := time.Parse("15:04", now)
+	if err != nil {
+		zap.S().Error(err)
+		return false
+	}
+	return inTimeSpan(nowTime, startTime, endTime)
+}
+
+func inTimeSpan(check, start, end time.Time) bool {
+	if start.Before(end) {
+		return !check.Before(start) && !check.After(end)
+	}
+	if start.Equal(end) {
+		return check.Equal(start)
+	}
+	return !start.After(check) || !end.Before(check)
+}
+
+func getNowAsHrMinString() string {
+	now := time.Now()
+	return fmt.Sprintf("%02d:%02d", now.Hour(), now.Minute())
+}
+
+func (a *App) handleSnapshots() error {
+	// Time filter
+	if !isWithinActiveHours(getNowAsHrMinString(), a.Cfg.Snapshots.ActiveTime.FromTime, a.Cfg.Snapshots.ActiveTime.ToTime) {
+		err := fmt.Errorf("Outside active hours (%s / %s - %s), ignoring", getNowAsHrMinString(), a.Cfg.Snapshots.ActiveTime.FromTime, a.Cfg.Snapshots.ActiveTime.ToTime)
+		zap.S().Warn(err)
+		return err
+	}
+
+	data, err := a.Snapshots.Capture()
+	if err != nil {
+		return err
+	}
+	err = a.Snapshots.Send(data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (a *App) PostHandlerMotion(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -115,41 +171,37 @@ func (a *App) PostHandlerMotion(w http.ResponseWriter, r *http.Request) {
 	if err := a.filterRequest(w, r); err != nil {
 		return
 	}
-
 	_, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		zap.S().Error(err)
 		a.sendErr(w, "", http.StatusBadRequest)
 		return
 	}
-	// Take a snapshot
-	data, err := a.Snapshots.Capture()
-	if err != nil {
-		zap.S().Error(err)
-		a.sendErr(w, "", http.StatusInternalServerError)
-		return
-	}
-	err = a.Snapshots.Send(data)
-	if err != nil {
-		zap.S().Error(err)
-		a.sendErr(w, "", http.StatusInternalServerError)
-		return
-	}
-	/*
-		zap.S().Debugf("Raw: %v", string(raw))
-		err = json.Unmarshal(raw, &s)
+	// Handle Snapshots
+	if a.Cfg.Snapshots.Enabled {
+		err = a.handleSnapshots()
 		if err != nil {
 			zap.S().Error(err)
-			a.sendErr(w, "Bad Request", http.StatusBadRequest)
-			return
+			a.sendErr(w, "", http.StatusInternalServerError)
 		}
-	*/
+	}
 }
 
-func (a *App) PeriodicSnapshotHandler() {
+func (a *App) periodicUpdater() {
+	// Snapshots
+	if a.Cfg.Snapshots.Enabled {
+		zap.S().Infof("Snapshot updater running every %vs", a.Cfg.Snapshots.IntervalS)
+		for range time.Tick(time.Second * time.Duration(a.Cfg.Snapshots.IntervalS)) {
+			zap.S().Debugf("Tick, taking screenshot")
+			go a.handleSnapshots()
+		}
+	}
 }
 
 func (a *App) Serve() {
+	go a.periodicUpdater()
+
+	// Server
 	uri := fmt.Sprintf("%s:%s", a.Cfg.General.Server, a.Cfg.General.Port)
 	zap.S().Infof("Listening on %s", uri)
 	log.Fatal(http.ListenAndServe(uri, a.Router))

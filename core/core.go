@@ -25,7 +25,7 @@ type Snapshots struct {
 func (a *Snapshots) Capture() (image.Image, error) {
 	method := "GET"
 	req, err := http.NewRequest(method, a.Cfg.Snapshots.SnapshotUrl, nil)
-	zap.S().Infof("Sending request to %s", a.Cfg.Snapshots.SnapshotUrl)
+	zap.S().Debugf("Sending request to %s", a.Cfg.Snapshots.SnapshotUrl)
 
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (a *Snapshots) Send(img image.Image) error {
 	}
 
 	// Telegram
-	a.sendToChat(file)
+	go a.sendToChat(file)
 
 	return nil
 }
