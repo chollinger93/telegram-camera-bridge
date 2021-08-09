@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	c "github.com/chollinger93/telegram-camera-bridge/core"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -67,9 +68,15 @@ func newApp() *App {
 	app.Cfg = cfg
 	// Modules
 	if app.Cfg.Snapshots.Enabled {
+		bot, err := tgbotapi.NewBotAPI(cfg.Telegram.ApiKey)
+		if err != nil {
+			zap.S().Fatalf("Err creating Telegram bot: %v", err)
+		}
+
 		app.Snapshots = &c.Snapshots{
 			Cfg:    app.Cfg,
 			Client: &http.Client{},
+			TgBot:  bot,
 		}
 	}
 	return app

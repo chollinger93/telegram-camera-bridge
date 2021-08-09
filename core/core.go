@@ -3,10 +3,11 @@ package core
 import (
 	"image"
 	"image/jpeg"
-	"log"
+	"io/ioutil"
 	"net/http"
 	"os"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"go.uber.org/zap"
 )
 
@@ -18,6 +19,7 @@ type CamModule interface {
 type Snapshots struct {
 	Cfg    *Config
 	Client *http.Client
+	TgBot  *tgbotapi.BotAPI
 }
 
 func (a *Snapshots) Capture() (image.Image, error) {
@@ -44,33 +46,39 @@ func (a *Snapshots) Capture() (image.Image, error) {
 }
 
 func (a *Snapshots) Send(img image.Image) error {
-	out, _ := os.Create("./img.jpg")
+	// Temp
+	file, err := ioutil.TempFile("", "")
+	if err != nil {
+		return err
+	}
+	// Save
+	// TODO: in-memory
+	out, _ := os.Create(file.Name())
 	defer out.Close()
 
-	//var opts jpeg.Options
-	//opts.Quality = 1
-
-	err := jpeg.Encode(out, img, nil)
+	err = jpeg.Encode(out, img, nil)
 	if err != nil {
-		log.Println(err)
+		return err
 	}
+
+	// Telegram
+	a.sendToChat(file)
+
 	return nil
-	/*
-		method := "POST"
-		req, err := http.NewRequest(method, a.Cfg.Snapshots.SendUrl, bytesBody(body))
+}
 
-		if err != nil {
-			return err
-		}
-		req.Header.Add("Content-Type", "application/json")
-		req.Header.Add("Cookie", "capture_fps_1=14.0; monitor_info_1=; motion_detected_1=false")
+func (a *Snapshots) sendToChat(file *os.File) {
+	defer os.Remove(file.Name())
 
-		res, err := a.Client.Do(req)
-		if err != nil {
-			return err
-		}
-		defer res.Body.Close()
+	zap.S().Debugf("Authorized on account %s", a.TgBot.Self.UserName)
 
-		return nil
-	*/
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+	zap.S().Infof("File; %s", file.Name())
+	msg := tgbotapi.NewPhotoUpload(a.Cfg.Telegram.ChatId, file.Name())
+
+	_, err := a.TgBot.Send(msg)
+	if err != nil {
+		zap.S().Error(err)
+	}
 }

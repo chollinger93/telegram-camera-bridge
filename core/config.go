@@ -13,6 +13,12 @@ type GeneralConfig struct {
 	IpFilter string `mapstructure:"ip_filter"`
 }
 
+type TelegramConfig struct {
+	BotName string `mapstructure:"bot_name"`
+	ApiKey  string `mapstructure:"api_key"`
+	ChatId  int64  `mapstructure:"chat_id"`
+}
+
 type SnapshotConfig struct {
 	Enabled     bool
 	IntervalS   int         `mapstructure:"interval_s"`
@@ -30,7 +36,4 @@ type VideoConfig struct {
 type TimerConfig struct {
 	FromTime string `mapstructure:"from_time"`
 	ToTime   string `mapstructure:"to_time"`
-}
-
-type TelegramConfig struct {
 }
