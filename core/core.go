@@ -18,7 +18,7 @@ type CamModule interface {
 	Capture() (image.Image, error)
 	Send(image.Image) error
 	SendTo(image.Image, int) error
-	HandleCommands() error
+	HandleCommands(chan int) error
 }
 
 type Snapshots struct {
@@ -94,7 +94,7 @@ func (a *Snapshots) sendToChat(file *os.File, replyId int) {
 	}
 }
 
-func (a *Snapshots) HandleCommands() error {
+func (a *Snapshots) HandleCommands(ch chan int) error {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
@@ -146,6 +146,8 @@ func (a *Snapshots) HandleCommands() error {
 			}
 			// Overwrite interval
 			a.Cfg.Snapshots.IntervalS = i
+			// Inform ticker to reset
+			ch <- i
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Will now take snapshots every %v seconds (takes time to take effect)", i))
 			msg.ReplyToMessageID = update.Message.MessageID
 			a.TgBot.Send(msg)
