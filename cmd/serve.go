@@ -48,7 +48,8 @@ type App struct {
 	Router *mux.Router
 	Cfg    *c.Config
 	// Modules
-	Snapshots c.CamModule
+	Snapshots           c.CamModule
+	SnapshotTimeoutChan chan int
 }
 
 func newApp() *App {
@@ -81,6 +82,8 @@ func newApp() *App {
 			Client: &http.Client{},
 			TgBot:  bot,
 		}
+
+		app.SnapshotTimeoutChan = make(chan int, 1)
 	}
 	return app
 }
@@ -190,17 +193,28 @@ func (a *App) PostHandlerMotion(w http.ResponseWriter, r *http.Request) {
 func (a *App) periodicUpdater() {
 	// Snapshots
 	if a.Cfg.Snapshots.Enabled {
-		zap.S().Infof("Snapshot updater running every %vs", a.Cfg.Snapshots.IntervalS)
-		for range time.Tick(time.Second * time.Duration(a.Cfg.Snapshots.IntervalS)) {
-			zap.S().Debugf("Tick, taking screenshot after %vs", a.Cfg.Snapshots.IntervalS)
-			go a.handleSnapshots()
+		interval := a.Cfg.Snapshots.IntervalS
+		zap.S().Infof("Snapshot updater running every %vs", interval)
+		ticker := time.NewTicker(time.Second * time.Duration(interval))
+
+		for {
+			select {
+			case <-a.SnapshotTimeoutChan:
+				zap.S().Infof("Updated Snapshot updater running every %vs", a.Cfg.Snapshots.IntervalS)
+				ticker.Stop()
+				ticker = time.NewTicker(time.Second * time.Duration(a.Cfg.Snapshots.IntervalS))
+			case <-ticker.C:
+				zap.S().Debugf("Tick, taking screenshot after %vs", a.Cfg.Snapshots.IntervalS)
+				go a.handleSnapshots()
+			}
+
 		}
 	}
 }
 
 func (a *App) commandHandler() {
 	if a.Cfg.Snapshots.Enabled {
-		go a.Snapshots.HandleCommands()
+		go a.Snapshots.HandleCommands(a.SnapshotTimeoutChan)
 	}
 }
 
