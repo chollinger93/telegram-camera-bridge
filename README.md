@@ -3,7 +3,7 @@
 A stupid little project that takes pictures using a `Raspberry Pi Zero` every x minutes (or upon a motion REST request) from a [MotionEye OS](https://github.com/ccrisan/motioneyeos) camera and sends it to a Telegram Group.
 
 # ...why?
-![docs/noodle_bot.png](docs/noodle_bot.png)
+![docs/noodle_bot.png](docs/chat.jpg)
 
 So we can watch guinea pigs without having to completely expose a service or set up wireguard. Important stuff, written one bored afternoon.
 
