@@ -45,3 +45,14 @@ go test ./... -coverprofile coverage.out
 go tool cover --html coverage.out 
 go build *.go
 ```
+
+## Docker
+```
+CONFIG_FILE=$(pwd)/config/sample.yaml
+docker build . -t telegram-motioneye
+docker run -d  \
+    -p "$(cat $CONFIG_FILE | grep port | cut -d'"' -f2 | xargs)":6060 \
+    -v $(pwd)/config:/config \
+    telegram-motioneye \
+    /app/server serve --config /config/$(basename $CONFIG_FILE)
+```
