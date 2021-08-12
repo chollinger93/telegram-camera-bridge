@@ -8,9 +8,10 @@ type Config struct {
 }
 
 type GeneralConfig struct {
-	Server   string
-	Port     string
-	IpFilter string `mapstructure:"ip_filter"`
+	Server     string
+	Port       string
+	IpFilter   string `mapstructure:"ip_filter"`
+	RateFilter int    `mapstructure:"max_requests_per_hr"`
 }
 
 type TelegramConfig struct {

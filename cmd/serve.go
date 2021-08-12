@@ -11,6 +11,8 @@ import (
 
 	c "github.com/chollinger93/telegram-camera-bridge/core"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/throttled/throttled/v2"
+	"github.com/throttled/throttled/v2/store/memstore"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -45,8 +47,9 @@ func init() {
 }
 
 type App struct {
-	Router *mux.Router
-	Cfg    *c.Config
+	Router  *mux.Router
+	Cfg     *c.Config
+	RestUri string
 	// Modules
 	Snapshots           c.CamModule
 	SnapshotTimeoutChan chan int
@@ -54,10 +57,7 @@ type App struct {
 
 func newApp() *App {
 	app := &App{}
-	// Build a router
-	app.Router = mux.NewRouter()
-	app.Router.HandleFunc("/motion", app.PostHandlerMotion).Methods(http.MethodPost)
-	http.Handle("/", app.Router)
+
 	// Read the config
 	cfg := &c.Config{}
 	err := viper.ReadInConfig()
@@ -85,14 +85,56 @@ func newApp() *App {
 
 		app.SnapshotTimeoutChan = make(chan int, 1)
 	}
+
+	// Build a router
+	app.buildRouter()
+
 	return app
+}
+
+func (app *App) buildRouter() {
+	app.Router = mux.NewRouter()
+	if app.Cfg.General.RateFilter != 0 {
+		// Throttling
+		store, err := memstore.New(65536)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		quota := throttled.RateQuota{
+			MaxRate:  throttled.PerHour(app.Cfg.General.RateFilter),
+			MaxBurst: 0,
+		}
+		rateLimiter, err := throttled.NewGCRARateLimiter(store, quota)
+		if err != nil {
+			zap.S().Fatal(err)
+		}
+
+		httpRateLimiter := throttled.HTTPRateLimiter{
+			Error:       app.denyHandler,
+			RateLimiter: rateLimiter,
+			VaryBy:      &throttled.VaryBy{Path: true},
+		}
+		// Handle
+		app.Router.Use(httpRateLimiter.RateLimit)
+		app.Router.HandleFunc("/motion", app.PostHandlerMotion).Methods(http.MethodPost)
+		http.Handle("/", httpRateLimiter.RateLimit(app.Router))
+
+	} else {
+		app.Router.HandleFunc("/motion", app.PostHandlerMotion).Methods(http.MethodPost)
+		http.Handle("/", app.Router)
+	}
+}
+
+func (a *App) denyHandler(w http.ResponseWriter, r *http.Request, err error) {
+	w.WriteHeader(http.StatusTooManyRequests)
+	w.Write(nil)
 }
 
 func (a *App) sendErr(w http.ResponseWriter, msg string, code int) {
 	response, _ := json.Marshal(msg)
 	w.WriteHeader(code)
 	w.Write(response)
-	return
 }
 
 func (a *App) filterRequest(w http.ResponseWriter, r *http.Request) error {
@@ -168,6 +210,11 @@ func (a *App) handleSnapshots() error {
 }
 
 func (a *App) PostHandlerMotion(w http.ResponseWriter, r *http.Request) {
+	if r.Body == nil {
+		zap.S().Error("Null request")
+		a.sendErr(w, "", http.StatusBadRequest)
+		return
+	}
 	defer r.Body.Close()
 
 	// IP range filter
@@ -227,5 +274,6 @@ func (a *App) Serve() {
 	// Server
 	uri := fmt.Sprintf("%s:%s", a.Cfg.General.Server, a.Cfg.General.Port)
 	zap.S().Infof("Listening on %s", uri)
+	a.RestUri = uri
 	log.Fatal(http.ListenAndServe(uri, a.Router))
 }
