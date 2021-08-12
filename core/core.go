@@ -108,8 +108,9 @@ func (a *Snapshots) HandleCommands(ch chan int) error {
 		if update.Message == nil {
 			continue
 		}
-		if update.Message.From.ID != int(a.Cfg.Telegram.ChatId) {
-			zap.S().Warnf("Ignoring message from %s [%v]", update.Message.From.UserName, update.Message.From.ID)
+
+		if update.Message.Chat.ID != a.Cfg.Telegram.ChatId {
+			zap.S().Warnf("Ignoring message from %s [%v] via %v", update.Message.From.UserName, update.Message.From.ID, update.Message.Chat.ID)
 			continue
 		}
 
