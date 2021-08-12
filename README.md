@@ -38,3 +38,10 @@ And grab the ID of the chanel you've added the bot to.
                     "type": "group",
                     ...
 ```
+
+## Build & Test
+```
+go test ./... -coverprofile coverage.out
+go tool cover --html coverage.out 
+go build *.go
+```
