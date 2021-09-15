@@ -1,0 +1,12 @@
+project_name: telegram-motioneye
+builds:
+  -
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    id: "telegram-motioneye"
+    dir: .
